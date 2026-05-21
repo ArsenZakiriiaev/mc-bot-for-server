@@ -1,6 +1,6 @@
 # mc-bot
 
-A Minecraft companion bot I wrote for a friend's private server. Runs as a second account that follows you around, fights for you, eats automatically, and can mine blocks on command. Nothing fancy — just something useful to have on the server.
+A minecraft companion bot I wrote for a friend's private server. Runs as a second account that follows you around, fights for you, eats automatically, and can mine blocks on command. Nothing fancy, just something useful to have on the server.
 
 Built with [mineflayer](https://github.com/PrismarineJS/mineflayer).
 

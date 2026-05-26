@@ -73,6 +73,28 @@ async function tryDig(bot, block, maxAttempts = 3) {
   return false;
 }
 
+const BLOCK_ALIASES = {
+  wood: 'oak_log', log: 'oak_log', logs: 'oak_log',
+  oak: 'oak_log', spruce: 'spruce_log', birch: 'birch_log',
+  jungle: 'jungle_log', acacia: 'acacia_log', dark_oak: 'dark_oak_log',
+  mangrove: 'mangrove_log', cherry: 'cherry_log', bamboo_block: 'bamboo_block',
+  grass: 'grass_block', dirt_path: 'dirt_path',
+  coal: 'coal_ore', iron: 'iron_ore', gold: 'gold_ore',
+  diamond: 'diamond_ore', emerald: 'emerald_ore', lapis: 'lapis_ore',
+  redstone: 'redstone_ore', copper: 'copper_ore',
+  deepslate_coal: 'deepslate_coal_ore', deepslate_iron: 'deepslate_iron_ore',
+  deepslate_gold: 'deepslate_gold_ore', deepslate_diamond: 'deepslate_diamond_ore',
+  deepslate_emerald: 'deepslate_emerald_ore',
+  sand: 'sand', gravel: 'gravel', clay: 'clay',
+  glowstone: 'glowstone', quartz: 'nether_quartz_ore',
+  ancient_debris: 'ancient_debris',
+};
+
+function resolveBlockName(name) {
+  const n = name.trim().toLowerCase();
+  return BLOCK_ALIASES[n] || n;
+}
+
 function stop(controller, reason = 'stopped') {
   if (controller._digJob) {
     controller._digJob.active = false;
@@ -93,10 +115,15 @@ function start(controller, blockName, opts = {}) {
 
   stop(controller, 'replaced');
 
+  const resolved = resolveBlockName(name);
+  if (resolved !== name) {
+    bot.emit('companion:log', `[DIG] Alias '${name}' -> '${resolved}'`);
+  }
+
   controller._digJob = {
     id: (controller._digJob?.id || 0) + 1,
     active: true,
-    blockName: name,
+    blockName: resolved,
     maxDistance: Number.isFinite(opts.maxDistance) ? opts.maxDistance : 64,
     searchMaxDistance: Number.isFinite(opts.searchMaxDistance) ? opts.searchMaxDistance : 128,
     searchStep: Number.isFinite(opts.searchStep) ? opts.searchStep : 24,
@@ -106,8 +133,8 @@ function start(controller, blockName, opts = {}) {
     _busy: false
   };
 
-  bot.chat(`OK. Digging '${name}' until you say !stop.`);
-  bot.emit('companion:log', `[DIG] Started continuous dig: ${name}`);
+  bot.chat(`OK. Digging '${resolved}' until you say !stop.`);
+  bot.emit('companion:log', `[DIG] Started continuous dig: ${resolved}`);
   controller.sm.setState(States.DIG, 'dig start');
 }
 

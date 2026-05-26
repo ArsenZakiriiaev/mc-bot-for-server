@@ -88,8 +88,12 @@ class Controller {
       this.sm.setState(States.FOLLOW, 'target dead');
     });
 
+    let _lastPlaceUnder = 0;
     bot.on('physicsTick', async () => {
       if (!bot.pathfinder?.isMoving()) return;
+
+      const now = Date.now();
+      if (now - _lastPlaceUnder < 800) return;
 
       const goal = bot.pathfinder.goal;
       const pos = bot.entity.position;
@@ -117,6 +121,7 @@ class Controller {
 
       if (depth <= 3) return;
 
+      _lastPlaceUnder = now;
       try {
         await building.tryPlaceUnder(bot);
       } catch (err) {

@@ -37,10 +37,10 @@ const TOOLS_ANTHROPIC = [
   },
   {
     name: 'start_dig',
-    description: 'Continuously mine a block type until told to stop.',
+    description: 'Continuously mine a block type until told to stop. Use plain words like "wood", "coal", "iron", "diamond", "stone", "sand" — the bot will resolve them to the correct block ID.',
     input_schema: {
       type: 'object',
-      properties: { block_name: { type: 'string', description: 'e.g. oak_log, stone, coal_ore' } },
+      properties: { block_name: { type: 'string', description: 'plain word like wood, coal, iron, diamond, stone, sand, gravel, oak, spruce, etc.' } },
       required: ['block_name']
     }
   },

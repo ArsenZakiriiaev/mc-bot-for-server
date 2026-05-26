@@ -2,7 +2,6 @@
 
 const States = require('../core/states');
 const combat = require('./combat');
-const dig = require('./dig');
 
 const MAX_HISTORY = 20;
 
@@ -36,13 +35,39 @@ const TOOLS_ANTHROPIC = [
     }
   },
   {
-    name: 'start_dig',
-    description: 'Continuously mine a block type until told to stop. Use plain words like "wood", "coal", "iron", "diamond", "stone", "sand" — the bot will resolve them to the correct block ID.',
+    name: 'mine',
+    description: 'Continuously mine a block type using long-range scanner. Use plain words like "wood", "coal", "iron", "diamond". Bot will explore until it finds the target if not visible.',
     input_schema: {
       type: 'object',
-      properties: { block_name: { type: 'string', description: 'plain word like wood, coal, iron, diamond, stone, sand, gravel, oak, spruce, etc.' } },
+      properties: { block_name: { type: 'string', description: 'e.g. wood, coal, iron, diamond, stone' } },
       required: ['block_name']
     }
+  },
+  {
+    name: 'goto',
+    description: 'Navigate to specific coordinates using segmented long-range pathfinding.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' },
+        z: { type: 'number' }
+      },
+      required: ['x', 'y', 'z']
+    }
+  },
+  {
+    name: 'explore',
+    description: 'Explore the world in a rotating pattern, optionally searching for a block type.',
+    input_schema: {
+      type: 'object',
+      properties: { block_name: { type: 'string', description: 'Optional block to search for while exploring' } }
+    }
+  },
+  {
+    name: 'cancel',
+    description: 'Cancel all current tasks (movement, mining, exploring).',
+    input_schema: { type: 'object', properties: {} }
   },
   {
     name: 'get_status',
@@ -87,9 +112,9 @@ function execTool(controller, name, input) {
       return 'Now following owner.';
 
     case 'stop':
-      try { dig.stop(controller, 'ai stop'); } catch {}
+    case 'cancel':
+      controller._cancelAllProcesses('ai stop');
       try { bot.pvp.stop(); } catch {}
-      bot.pathfinder.setGoal(null);
       controller.combatTarget = null;
       controller.sm.setState(States.IDLE, 'ai stop');
       return 'Stopped.';
@@ -98,9 +123,33 @@ function execTool(controller, name, input) {
       combat.startAttackByName(controller, String(input.mob_name || ''));
       return `Attacking ${input.mob_name}.`;
 
-    case 'start_dig':
-      dig.start(controller, String(input.block_name || ''));
-      return `Digging ${input.block_name}.`;
+    case 'mine': {
+      const name = String(input.block_name || '');
+      controller._cancelAllProcesses('new mine');
+      controller._proc.mine.start(name);
+      controller.sm.setState(States.MINE, 'ai mine');
+      return `Mining ${name}.`;
+    }
+
+    case 'goto': {
+      const { x, y, z } = input;
+      controller._cancelAllProcesses('goto');
+      controller._proc.getToBlock.start(Number(x), Number(y), Number(z));
+      controller.sm.setState(States.GOTO, 'ai goto');
+      return `Navigating to (${x}, ${y}, ${z}).`;
+    }
+
+    case 'explore': {
+      const hint = String(input.block_name || '').trim();
+      controller._cancelAllProcesses('explore');
+      if (hint) {
+        controller._proc.explore.startToward(hint);
+      } else {
+        controller._proc.explore.start();
+      }
+      controller.sm.setState(States.EXPLORE, 'ai explore');
+      return hint ? `Exploring for ${hint}.` : 'Exploring.';
+    }
 
     case 'get_status': {
       const hp = bot.health?.toFixed(1) ?? '?';
@@ -112,11 +161,29 @@ function execTool(controller, name, input) {
     }
 
     case 'look_around': {
-      const nearby = Object.values(bot.entities)
-        .filter(e => e !== bot.entity && e.position?.distanceTo(bot.entity.position) < 32)
-        .slice(0, 20)
-        .map(e => `${e.username || e.name || e.type}(${e.position.distanceTo(bot.entity.position).toFixed(0)}m)`);
-      return nearby.length ? nearby.join(', ') : 'Nothing nearby.';
+      const pos = bot.entity.position;
+      const entities = Object.values(bot.entities)
+        .filter(e => e !== bot.entity && e.position?.distanceTo(pos) < 32)
+        .slice(0, 15)
+        .map(e => `${e.username || e.name || e.type}(${e.position.distanceTo(pos).toFixed(0)}m)`);
+
+      // Notable block types visible via scanner + cache
+      const notableBlocks = [];
+      for (const name of ['diamond_ore', 'iron_ore', 'coal_ore', 'oak_log', 'chest', 'lava']) {
+        const found = controller.scanner.find(controller.chunkCache, bot, name, {
+          maxDistance: 32, scanRadius: 64, count: 1
+        });
+        if (found.length) {
+          const f = found[0];
+          const d = Math.sqrt((f.x - pos.x) ** 2 + (f.y - pos.y) ** 2 + (f.z - pos.z) ** 2);
+          notableBlocks.push(`${name}(${d.toFixed(0)}m)`);
+        }
+      }
+
+      const parts = [];
+      if (entities.length) parts.push('Entities: ' + entities.join(', '));
+      if (notableBlocks.length) parts.push('Blocks: ' + notableBlocks.join(', '));
+      return parts.length ? parts.join(' | ') : 'Nothing notable nearby.';
     }
 
     default:

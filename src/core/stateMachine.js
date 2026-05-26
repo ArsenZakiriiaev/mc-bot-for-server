@@ -2,9 +2,8 @@
 
 const States = require('./states');
 const combat = require('../modules/combat');
-const follow = require('../modules/follow');
 const safety = require('../modules/safety');
-const dig = require('../modules/dig');
+const arbitrator = require('../processes/arbitrator');
 
 class StateMachine {
   constructor(controller) {
@@ -23,12 +22,12 @@ class StateMachine {
 
     if (await safety.tick(c)) return;
 
-    switch (this.state) {
-      case States.COMBAT: return combat.combatTick(c);
-      case States.DIG:    return dig.tick(c);
-      case States.FOLLOW: return follow.followTick(c);
-      default:            return follow.idleTick(c);
-    }
+    // Combat is still reactive and takes priority over all processes.
+    if (this.state === States.COMBAT) return combat.combatTick(c);
+
+    // All other behaviour goes through the process arbitrator.
+    const process = arbitrator.pick(c.processes);
+    if (process) await process.tick();
   }
 }
 

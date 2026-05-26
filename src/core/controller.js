@@ -11,6 +11,7 @@ const autoeat = require('../modules/autoeat');
 const safety = require('../modules/safety');
 const dig = require('../modules/dig');
 const building = require('../modules/building');
+const ai = require('../modules/ai');
 
 const SCAFFOLD_BLOCKS = [
   'dirt', 'cobblestone', 'stone', 'netherrack', 'sand', 'gravel',
@@ -48,6 +49,7 @@ class Controller {
     follow.install(this);
     autoeat.install(this);
     safety.install(this);
+    ai.install(this);
 
     this._setupEvents();
     this._startGameLoop();

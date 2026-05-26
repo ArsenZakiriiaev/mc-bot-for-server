@@ -9,6 +9,7 @@ const autoeat = require('../modules/autoeat');
 const safety = require('../modules/safety');
 const building = require('../modules/building');
 const ai = require('../modules/ai');
+const { craftItem } = require('../modules/craft');
 const navConfig   = require('../nav/config');
 const navMovements = require('../nav/movements');
 const Pathing = require('../nav/pathing');
@@ -158,7 +159,7 @@ class Controller {
 
     switch (cmd) {
       case '!help':
-        this.bot.chat('Commands: !follow, !stop, !attack <mob>, !mine <block>, !goto <x> <y> <z>, !settings <key> <val>, !status, !help');
+        this.bot.chat('Commands: !follow, !stop, !attack <mob>, !mine <block>, !goto <x> <y> <z>, !craft <item> [count], !settings <key> <val>, !status, !help');
         break;
 
       case '!follow':
@@ -224,6 +225,17 @@ class Controller {
         if (key === 'scaffoldBlocks' || key === 'avoidBlocks') {
           this._rebuildMovements();
         }
+        break;
+      }
+
+      case '!craft': {
+        if (args.length < 2) { this.bot.chat('Usage: !craft <item> [count]'); break; }
+        const itemName = args[1];
+        const craftCount = args[2] ? parseInt(args[2], 10) : 1;
+        this.bot.chat(`Crafting ${craftCount}x ${itemName}...`);
+        craftItem(this, itemName, craftCount)
+          .then(msg => this.bot.chat(msg))
+          .catch(err => this.bot.chat(`Craft error: ${err.message.slice(0, 80)}`));
         break;
       }
 

@@ -2,6 +2,7 @@
 
 const States = require('../core/states');
 const combat = require('./combat');
+const { craftItem } = require('./craft');
 
 const MAX_HISTORY = 20;
 
@@ -78,6 +79,18 @@ const TOOLS_ANTHROPIC = [
     name: 'look_around',
     description: 'List nearby players, mobs, and notable blocks within 32 blocks.',
     input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'craft',
+    description: 'Craft an item. Bot will navigate to a nearby crafting table if the recipe requires one.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item_name: { type: 'string', description: 'e.g. wooden_pickaxe, torch, chest, stick' },
+        count: { type: 'integer', description: 'How many to craft (default 1, max 64)' }
+      },
+      required: ['item_name']
+    }
   }
 ];
 
@@ -186,6 +199,13 @@ function execTool(controller, name, input) {
       return parts.length ? parts.join(' | ') : 'Nothing notable nearby.';
     }
 
+    case 'craft': {
+      const itemName = String(input.item_name || '');
+      const count = Number.isInteger(input.count) ? input.count : 1;
+      // craftItem is async — return a promise; execTool callers handle strings or promises
+      return craftItem(controller, itemName, count);
+    }
+
     default:
       return `Unknown tool: ${name}`;
   }
@@ -218,11 +238,11 @@ async function runWithAnthropic(controller, history, userMessage) {
 
     if (toolUses.length === 0 || resp.stop_reason === 'end_turn') break;
 
-    const toolResults = toolUses.map(tu => {
+    const toolResults = await Promise.all(toolUses.map(async tu => {
       controller.bot.emit('companion:log', `[AI] Tool: ${tu.name} ${JSON.stringify(tu.input)}`);
-      const result = execTool(controller, tu.name, tu.input);
-      return { type: 'tool_result', tool_use_id: tu.id, content: result };
-    });
+      const result = await Promise.resolve(execTool(controller, tu.name, tu.input));
+      return { type: 'tool_result', tool_use_id: tu.id, content: String(result) };
+    }));
 
     messages.push({ role: 'user', content: toolResults });
   }
@@ -259,8 +279,8 @@ async function runWithOpenAI(controller, history, userMessage) {
     for (const call of calls) {
       controller.bot.emit('companion:log', `[AI] Tool: ${call.function.name} ${call.function.arguments}`);
       const input = JSON.parse(call.function.arguments || '{}');
-      const result = execTool(controller, call.function.name, input);
-      messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+      const result = await Promise.resolve(execTool(controller, call.function.name, input));
+      messages.push({ role: 'tool', tool_call_id: call.id, content: String(result) });
     }
   }
 

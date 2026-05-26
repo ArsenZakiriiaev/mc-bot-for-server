@@ -3,6 +3,8 @@
 const { goals: Goals } = require('mineflayer-pathfinder');
 const Process = require('./_base');
 const scanner = require('../nav/cache/scanner');
+const inventory = require('../nav/inventory');
+const navConfig = require('../nav/config');
 
 const BLOCK_ALIASES = {
   wood: 'oak_log', log: 'oak_log', logs: 'oak_log',
@@ -83,6 +85,18 @@ class MineProcess extends Process {
   async _step() {
     const { bot, pathing, chunkCache } = this.controller;
     const blockName = this._target;
+
+    // Scaffold discipline: warn when low, try to equip what we have
+    if (navConfig.allowPlace) {
+      if (inventory.criticallyLowScaffold(bot, navConfig)) {
+        bot.emit('companion:log',
+          `[MINE] Scaffold critically low (< ${inventory.SCAFFOLD_CRITICAL}), bridging disabled until restocked`);
+      } else if (!inventory.hasScaffold(bot, navConfig)) {
+        bot.emit('companion:log',
+          `[MINE] Scaffold low (< ${inventory.SCAFFOLD_LOW})`);
+      }
+      await inventory.ensureScaffoldInHand(bot, navConfig);
+    }
 
     // Find via loaded chunks first, then cache
     const candidates = scanner.find(chunkCache, bot, blockName, {

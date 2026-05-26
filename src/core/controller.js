@@ -9,7 +9,7 @@ const autoeat = require('../modules/autoeat');
 const safety = require('../modules/safety');
 const building = require('../modules/building');
 const ai = require('../modules/ai');
-const navConfig = require('../nav/config');
+const navConfig   = require('../nav/config');
 const navMovements = require('../nav/movements');
 const Pathing = require('../nav/pathing');
 const ChunkCache = require('../nav/cache/chunkCache');
@@ -29,8 +29,10 @@ class Controller {
     this.combatTarget = null;
 
     const mcData = mcDataLoader(bot.version);
+    this.mcData = mcData;
     const movements = navMovements.build(bot, mcData);
     bot.pathfinder.setMovements(movements);
+    this._movements = movements;
 
     this.pathing = new Pathing(bot, navConfig);
     this.pathing.setMovements(movements);
@@ -156,7 +158,7 @@ class Controller {
 
     switch (cmd) {
       case '!help':
-        this.bot.chat('Commands: !follow, !stop, !attack <mob>, !mine <block>, !goto <x> <y> <z>, !status, !help');
+        this.bot.chat('Commands: !follow, !stop, !attack <mob>, !mine <block>, !goto <x> <y> <z>, !settings <key> <val>, !status, !help');
         break;
 
       case '!follow':
@@ -197,6 +199,34 @@ class Controller {
         break;
       }
 
+      case '!settings': {
+        if (args.length < 3) {
+          this.bot.chat('Usage: !settings <key> <value>  e.g. !settings allowBreak true');
+          break;
+        }
+        const key = args[1];
+        const rawVal = args[2];
+        if (!(key in navConfig)) {
+          this.bot.chat(`Unknown setting: ${key}`);
+          break;
+        }
+        let val;
+        if (rawVal === 'true')       val = true;
+        else if (rawVal === 'false') val = false;
+        else if (!Number.isNaN(Number(rawVal))) val = Number(rawVal);
+        else { this.bot.chat(`Bad value: ${rawVal}`); break; }
+
+        navConfig[key] = val;
+        this.bot.emit('companion:log', `[SETTINGS] ${key} = ${val}`);
+        this.bot.chat(`${key} = ${val}`);
+
+        // scaffoldBlocks / avoidBlocks changes need a new Movements object
+        if (key === 'scaffoldBlocks' || key === 'avoidBlocks') {
+          this._rebuildMovements();
+        }
+        break;
+      }
+
       case '!status': {
         const hp    = this.bot.health?.toFixed(1) ?? '?';
         const food  = this.bot.food ?? '?';
@@ -206,6 +236,14 @@ class Controller {
         break;
       }
     }
+  }
+
+  _rebuildMovements() {
+    const m = navMovements.build(this.bot, this.mcData);
+    this.bot.pathfinder.setMovements(m);
+    this.pathing.setMovements(m);
+    this._movements = m;
+    this.bot.emit('companion:log', '[NAV] Movements rebuilt');
   }
 
   getOwnerEntity() {

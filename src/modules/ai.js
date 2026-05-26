@@ -283,6 +283,9 @@ function install(controller) {
     if (username === controller.bot.username) return;
     if (message.startsWith('!')) return;
     if (username !== controller.owner) return;
+    // Reject server notification messages that mineflayer mis-attributes to a
+    // player name (e.g. teleport broadcasts, death messages).
+    if (!controller.bot.players[username]) return;
 
     if (busy) {
       controller.bot.chat('Still thinking...');
